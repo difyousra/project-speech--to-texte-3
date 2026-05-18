@@ -1,7 +1,11 @@
 # =========================
 # ===== WHISPER MODELS ====
 # =========================
-whisper-finetuned/
+whisper-finetuned/*
+
+# MAIS autoriser le modèle Darja
+!whisper-finetuned/Darja/
+!whisper-finetuned/Darja/**
 
 # =========================
 # ===== STT (Speech) ======
