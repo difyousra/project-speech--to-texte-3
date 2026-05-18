@@ -1,0 +1,25 @@
+﻿--- RESULTATS DES TESTS WHISPER ARABE ---
+
+NOM DU FICHIER : CW42.wav
+TRANSCRIPTION : السلام عليكم عندي مدة و 4g تعفى بزاف في حومة عين internet تقطع بزاف و سرعة هابطة خاصة في الليل
+------------------------------
+--- RESULTATS DES TESTS WHISPER ARABE ---
+
+NOM DU FICHIER : self_sw_0001.wav
+TRANSCRIPTION : ها و نبعتي كي كيما la espace centime bon مكاتنا كان من بار ڨال قالو لازم تعيطلهم باش اكتبوها لا كلام على باليش
+------------------------------
+NOM DU FICHIER : self_sw_0002.wav
+TRANSCRIPTION : ولا في عندي probleme راح في internet راح في adsl راه مكانش
+------------------------------
+NOM DU FICHIER : self_sw_0003.wav
+TRANSCRIPTION : ايه عندي probleme de connexion و قالولي سمحة نجيب l'agent modem تاعي و ماشور
+------------------------------
+NOM DU FICHIER : self_sw_0005.wav
+TRANSCRIPTION : donc حنا نسشو راني نشوف بلي internet و الهاتف راهم actif عندك internet توفر حتى لفضل page fibree الفين و خمسة اشتراك
+------------------------------
+NOM DU FICHIER : self_sw_0007.wav
+TRANSCRIPTION : تغيير donc monsieur vingt trois bonne demande d'internet vingt trois ligne telephoneque sont inactif مازال elle n'est pas encore mise en service
+------------------------------
+NOM DU FICHIER : self_sw_0009.wav
+TRANSCRIPTION : راهي طفيه ايه كانت تمشي normal من بعد جاويت شفالة في الجدارة جاو صباح على بالي سوش دارو بلاك كاش واحد كوباولو la ligne هنا ولا مانعرف
+------------------------------
