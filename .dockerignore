@@ -1,0 +1,19 @@
+.git
+.gitignore
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.cursor
+main/
+laststation/
+call_chunks/
+*.ipynb
+.env
+NLP/DATA/
+# Poids montés en volume au runtime — exclus du contexte de build
+NLP/
+whisper-finetuned/
+# Fichiers d'entraînement lourds si présents dans le contexte
+**/optimizer.pt
+**/scheduler.pt
+**/training_args.bin

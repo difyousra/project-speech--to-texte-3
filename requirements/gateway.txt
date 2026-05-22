@@ -1,0 +1,9 @@
+-r common.txt
+fastapi>=0.110,<1
+uvicorn[standard]>=0.29,<1
+websockets>=12,<14
+httpx>=0.27,<1
+python-multipart>=0.0.9,<1
+soundfile>=0.12,<1
+numpy>=1.26,<3
+redis>=5,<6

@@ -1,0 +1,4 @@
+-r common.txt
+pytest>=8.0,<9
+jiwer>=3.0,<4
+httpx>=0.27,<1

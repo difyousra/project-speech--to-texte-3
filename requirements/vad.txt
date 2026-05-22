@@ -1,0 +1,8 @@
+-r common.txt
+numpy>=1.26,<3
+torch>=2.2,<3
+torchaudio>=2.2,<3
+soundfile>=0.12,<1
+fastapi>=0.110,<1
+uvicorn[standard]>=0.29,<1
+python-multipart>=0.0.9,<1

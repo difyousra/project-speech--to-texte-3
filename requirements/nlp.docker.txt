@@ -1,0 +1,6 @@
+-r common.txt
+transformers>=4.40,<6
+safetensors>=0.4,<1
+fastapi>=0.110,<1
+uvicorn[standard]>=0.29,<1
+python-multipart>=0.0.9,<1

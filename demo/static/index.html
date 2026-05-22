@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Réclamation — Appel & analyse live</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --surface2: #243044;
+      --border: #2d3a4f;
+      --text: #e8edf4;
+      --muted: #8b9cb3;
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.35);
+      --success: #22c55e;
+      --danger: #ef4444;
+      --warn: #f59e0b;
+      --critical: #dc2626;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "DM Sans", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .layout {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 { font-size: 1.35rem; font-weight: 700; }
+    header p { color: var(--muted); font-size: 0.9rem; }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+    }
+    .status-pill .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+    .status-pill.live .dot { background: var(--success); animation: pulse 1.2s infinite; }
+    .status-pill.processing .dot { background: var(--warn); animation: pulse 0.8s infinite; }
+    .status-pill.error .dot { background: var(--danger); }
+    @keyframes pulse { 50% { opacity: 0.4; } }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+    }
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+    .card h2 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 0.75rem;
+    }
+
+    .call-panel {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      padding: 2rem;
+    }
+    .call-btn {
+      width: 88px; height: 88px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      font-size: 2rem;
+      transition: transform 0.15s, box-shadow 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .call-btn.start {
+      background: linear-gradient(145deg, #22c55e, #16a34a);
+      box-shadow: 0 0 0 0 var(--accent-glow), 0 8px 24px rgba(34, 197, 94, 0.35);
+    }
+    .call-btn.start:hover { transform: scale(1.05); }
+    .call-btn.stop {
+      background: linear-gradient(145deg, #ef4444, #dc2626);
+      box-shadow: 0 8px 24px rgba(239, 68, 68, 0.35);
+    }
+    .call-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+    .call-hint { color: var(--muted); font-size: 0.9rem; text-align: center; }
+
+    .transcript-box {
+      min-height: 160px;
+      max-height: 280px;
+      overflow-y: auto;
+      padding: 1rem;
+      background: var(--bg);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      font-size: 1.15rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .transcript-box.empty { color: var(--muted); font-style: italic; font-size: 0.95rem; }
+    .transcript-partial { color: var(--accent); }
+    .transcript-status {
+      font-size: 0.8rem;
+      color: var(--warn);
+      margin-top: 0.5rem;
+      min-height: 1.2em;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .badge {
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: var(--surface2);
+    }
+    .badge.lang { border: 1px solid var(--accent); color: #93c5fd; }
+
+    .priority-badge {
+      font-size: 1.1rem;
+      font-weight: 700;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      display: inline-block;
+      margin-bottom: 0.5rem;
+    }
+    .priority-low { background: #14532d; color: #86efac; }
+    .priority-medium { background: #713f12; color: #fcd34d; }
+    .priority-high { background: #7c2d12; color: #fdba74; }
+    .priority-critical { background: #450a0a; color: #fca5a5; }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+    }
+    .result-item label {
+      display: block;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 0.2rem;
+    }
+    .result-item span { font-weight: 600; font-size: 0.95rem; }
+
+    .sentiment-bar {
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 3px;
+      margin-top: 0.5rem;
+      overflow: hidden;
+    }
+    .sentiment-bar fill {
+      display: block;
+      height: 100%;
+      background: var(--accent);
+      border-radius: 3px;
+      transition: width 0.3s;
+    }
+    .sentiment-fill {
+      display: block;
+      height: 100%;
+      min-width: 2px;
+      background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+      border-radius: 3px;
+      transition: width 0.3s;
+    }
+    #rScore {
+      display: block;
+      margin-top: 0.35rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .settings {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: var(--surface);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .settings summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+    .settings input {
+      width: 100%;
+      margin-top: 0.5rem;
+      padding: 0.5rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+    }
+    .settings label { font-size: 0.8rem; color: var(--muted); display: block; margin-top: 0.75rem; }
+
+    .urgency-flag {
+      color: var(--critical);
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+
+    .network-box {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1.25rem;
+      padding: 1rem 1.25rem;
+      background: linear-gradient(135deg, #1e3a5f 0%, var(--surface) 60%);
+      border-color: #3b82f6;
+    }
+    .network-box h2 { margin-bottom: 0.35rem; width: 100%; }
+    .network-url {
+      flex: 1;
+      min-width: 200px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #93c5fd;
+      word-break: break-all;
+    }
+    .network-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .network-actions button {
+      padding: 0.45rem 0.9rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .network-actions button:hover { background: var(--accent); border-color: var(--accent); }
+    .network-hint { width: 100%; font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+
+    .mic-alert {
+      grid-column: 1 / -1;
+      padding: 1rem 1.25rem;
+      border-radius: 12px;
+      border: 2px solid var(--warn);
+      background: rgba(245, 158, 11, 0.12);
+      color: #fcd34d;
+      font-size: 0.9rem;
+    }
+    .mic-alert strong { display: block; margin-bottom: 0.35rem; color: #fde68a; }
+    .mic-alert a { color: #93c5fd; }
+
+    .fallback-panel {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    .fallback-panel button, .fallback-panel label.btn-file {
+      padding: 0.55rem 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--text);
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .fallback-panel label.btn-file input { display: none; }
+    .fallback-panel .rec-indicator { color: var(--danger); font-weight: 600; }
+
+    .top-nav {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .nav-tab {
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .nav-tab:hover { color: var(--text); border-color: var(--accent); }
+    .nav-tab.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .view-panel { display: block; }
+    .view-panel[hidden] { display: none !important; }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .stat-card {
+      background: var(--surface2);
+      border-radius: 10px;
+      padding: 1rem;
+      text-align: center;
+    }
+    .stat-card .value { font-size: 1.75rem; font-weight: 700; color: var(--accent); }
+    .stat-card .label { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
+    .stats-bars { margin-top: 0.5rem; }
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.4rem;
+      font-size: 0.85rem;
+    }
+    .bar-row span:first-child { min-width: 100px; color: var(--muted); }
+    .bar-track {
+      flex: 1;
+      height: 8px;
+      background: var(--surface2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .bar-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+    .recent-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+    .recent-table th, .recent-table td {
+      padding: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+    .recent-table th { color: var(--muted); font-weight: 600; }
+    .services-banner {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+      font-size: 0.8rem;
+    }
+    .svc-chip {
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+    }
+    .svc-chip.ok { border-color: var(--success); color: var(--success); }
+    .svc-chip.down { border-color: var(--danger); color: var(--danger); }
+    .svc-chip.loading { border-color: var(--warn); color: var(--warn); }
+    .advisor-text {
+      margin-top: 0.75rem;
+      padding: 1rem;
+      background: var(--surface2);
+      border-radius: 10px;
+      border-left: 3px solid var(--accent);
+      white-space: pre-wrap;
+      line-height: 1.55;
+      font-size: 0.92rem;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <header>
+      <div>
+        <h1>Centre d'appels — Réclamation live</h1>
+        <p>STT multilingue → classification → sentiment & priorité</p>
+      </div>
+      <div id="globalStatus" class="status-pill">
+        <span class="dot"></span>
+        <span id="statusText">Prêt</span>
+      </div>
+    </header>
+
+    <nav class="top-nav" id="topNav">
+      <button type="button" class="nav-tab active" data-view="call">📞 Appel live</button>
+      <button type="button" class="nav-tab" data-view="dashboard">📊 Statistiques réclamations</button>
+    </nav>
+
+    <div class="services-banner" id="servicesBanner"></div>
+
+    <div id="viewCall" class="view-panel">
+    <section class="card network-box" id="networkBox">
+      <h2>Accès depuis votre téléphone (même Wi‑Fi)</h2>
+      <div class="network-url" id="pageUrl">—</div>
+      <div class="network-actions">
+        <button type="button" id="btnCopyUrl">Copier le lien</button>
+        <button type="button" id="btnOpenUrl">Ouvrir</button>
+      </div>
+      <p class="network-hint" id="networkHint">
+        Sur le téléphone : utilisez le lien <strong>https://</strong> (port 8443) pour autoriser le micro.
+      </p>
+    </section>
+
+    <div id="micAlert" class="mic-alert" hidden>
+      <strong>Micro bloqué sur cette page</strong>
+      Les navigateurs mobiles n’autorisent le micro qu’en <strong>HTTPS</strong>.
+      Ouvrez <a id="httpsLink" href="#">le lien sécurisé</a> ou lancez :
+      <code>bash scripts/generate_ssl_certs.sh VOTRE_IP</code>
+    </div>
+
+    <section class="card fallback-panel">
+      <span style="color: var(--muted); font-size: 0.85rem;">Si le micro live ne marche pas :</span>
+      <button type="button" id="btnRecord">🎙 Enregistrer (10–30 s)</button>
+      <span id="recStatus" class="rec-indicator" hidden>● Enregistrement…</span>
+      <label class="btn-file">📁 Envoyer un fichier audio
+        <input type="file" id="audioFile" accept="audio/*" capture="user" />
+      </label>
+    </section>
+
+    <section class="card call-panel">
+      <button id="btnCall" class="call-btn start" title="Démarrer l'appel">📞</button>
+      <p id="callHint" class="call-hint">Cliquez pour lancer un appel et parler au micro</p>
+      <p id="timer" class="call-hint" style="font-variant-numeric: tabular-nums;"></p>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Transcription en direct</h2>
+        <div id="transcript" class="transcript-box empty">Parlez après 📞 — le texte apparaît par segments (~3 s de parole).</div>
+        <p id="transcriptStatus" class="transcript-status"></p>
+        <p style="font-size:0.8rem;color:var(--muted);margin:0.25rem 0;">
+          Convention fine-tuning : darija en arabe/latin, termes français en français
+          (<em>internet</em>, <em>modem</em>, <em>facture</em> — pas « انترنت »).
+        </p>
+        <button type="button" id="btnAnalyzeText" style="margin-bottom:0.5rem;padding:0.4rem 0.75rem;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;">
+          🔍 Analyser le texte affiché
+        </button>
+        <div class="meta-row">
+          <span id="langBadge" class="badge lang" hidden></span>
+          <span id="chunkInfo" class="badge" hidden></span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Classification réclamation</h2>
+        <div id="classEmpty" style="color: var(--muted); font-size: 0.9rem;">En attente de parole…</div>
+        <div id="classResults" hidden>
+          <div class="result-grid">
+            <div class="result-item">
+              <label>Intention</label>
+              <span id="rIntent">—</span>
+            </div>
+            <div class="result-item">
+              <label>Type de demande</label>
+              <span id="rRequestType">—</span>
+            </div>
+            <div class="result-item">
+              <label>Catégorie</label>
+              <span id="rCategory">—</span>
+            </div>
+            <div class="result-item">
+              <label>Service chargé du traitement</label>
+              <span id="rService">—</span>
+            </div>
+            <div class="result-item">
+              <label>Délai de prise en charge (SLA)</label>
+              <span id="rHandlingSla">—</span>
+            </div>
+            <div class="result-item">
+              <label>Niveau 1</label>
+              <span id="rLevel1">—</span>
+            </div>
+            <div class="result-item">
+              <label>Niveau 2</label>
+              <span id="rLevel2">—</span>
+            </div>
+            <div class="result-item">
+              <label>Thème</label>
+              <span id="rTheme">—</span>
+            </div>
+            <div class="result-item">
+              <label>Délai signalé par le client</label>
+              <span id="rWaiting">—</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Priorité & urgence</h2>
+        <div id="priorityEmpty" style="color: var(--muted);">—</div>
+        <div id="priorityResults" hidden>
+          <div id="priorityBadge" class="priority-badge priority-medium">MOYENNE</div>
+          <p id="urgencyLine" class="urgency-flag" hidden>⚠ Urgence détectée</p>
+          <div class="result-item" style="margin-top: 0.5rem;">
+            <label>Confiance intention</label>
+            <span id="rConfIntent">—</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Analyse de sentiment</h2>
+        <div id="sentimentEmpty" style="color: var(--muted);">—</div>
+        <div id="sentimentResults" hidden>
+          <div class="result-grid">
+            <div class="result-item">
+              <label>Sentiment</label>
+              <span id="rSentiment">—</span>
+            </div>
+            <div class="result-item">
+              <label>Émotion</label>
+              <span id="rEmotion">—</span>
+            </div>
+          </div>
+          <label style="font-size: 0.7rem; color: var(--muted); margin-top: 0.75rem; display: block;">Score de confiance</label>
+          <div class="sentiment-bar"><div id="sentimentFill" class="sentiment-fill" style="width: 0%"></div></div>
+          <span id="rScore">—</span>
+        </div>
+      </section>
+
+      <section class="card advisor-card" style="grid-column: 1 / -1;">
+        <h2>Solution Algérie Télécom (conseiller IA)</h2>
+        <div id="advisorEmpty" style="color: var(--muted); font-size: 0.9rem;">
+          Disponible après analyse — transcription + classification envoyées à l’IA.
+        </div>
+        <div id="advisorLoading" class="transcript-status" hidden>Génération de la solution…</div>
+        <div id="advisorContent" class="advisor-text" hidden></div>
+        <p id="advisorError" class="transcript-status" hidden></p>
+      </section>
+    </div>
+
+    <details class="settings">
+      <summary>Paramètres connexion</summary>
+      <label>URL WebSocket gateway</label>
+      <input id="wsUrl" type="text" />
+      <label>Clé API (optionnelle)</label>
+      <input id="apiKey" type="password" placeholder="dev-key" />
+    </details>
+    </div>
+
+    <div id="viewDashboard" class="view-panel" hidden>
+      <section class="card">
+        <h2>Tableau de bord — réclamations analysées</h2>
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1rem;">
+          Comptage à chaque analyse NLP réussie (appel live ou fichier audio).
+        </p>
+        <div class="stats-grid" id="statsTotals">
+          <div class="stat-card"><div class="value" id="statTotal">0</div><div class="label">Total</div></div>
+          <div class="stat-card"><div class="value" id="statHigh">0</div><div class="label">Priorité haute+</div></div>
+          <div class="stat-card"><div class="value" id="statReclamation">0</div><div class="label">Réclamations</div></div>
+          <div class="stat-card"><div class="value" id="statNegative">0</div><div class="label">Sentiment négatif</div></div>
+        </div>
+      </section>
+      <div class="grid">
+        <section class="card">
+          <h2>Par priorité</h2>
+          <div class="stats-bars" id="barsPriority"></div>
+        </section>
+        <section class="card">
+          <h2>Par catégorie</h2>
+          <div class="stats-bars" id="barsCategory"></div>
+        </section>
+        <section class="card">
+          <h2>Par sentiment</h2>
+          <div class="stats-bars" id="barsSentiment"></div>
+        </section>
+        <section class="card" style="grid-column:1/-1;">
+          <h2>Dernières réclamations</h2>
+          <div style="overflow-x:auto;">
+            <table class="recent-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Priorité</th>
+                  <th>Catégorie</th>
+                  <th>Sentiment</th>
+                  <th>Extrait</th>
+                </tr>
+              </thead>
+              <tbody id="recentTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+      <p style="margin-top:1rem;">
+        <button type="button" id="btnRefreshStats" class="nav-tab" style="display:inline-block;">↻ Actualiser</button>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const LABELS = {
+      intent: {
+        reclamation: "Réclamation",
+        inappropriate: "Inapproprié",
+        question: "Question / Assistance",
+        positive: "Positif",
+        suggestion: "Suggestion",
+      },
+      priority: {
+        low: "Basse",
+        medium: "Moyenne",
+        high: "Haute",
+        critical: "Critique",
+      },
+      sentiment: {
+        positive: "Positif",
+        negative: "Négatif",
+        neutral: "Neutre",
+      },
+      emotion: {
+        frustration: "Frustration",
+        anger: "Colère",
+        satisfaction: "Satisfaction",
+        neutral: "Neutre",
+      },
+    };
+
+    function getWsUrl() {
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      return `${proto}//${location.host}/ws/live`;
+    }
+
+    function getPageUrl() {
+      return location.origin + location.pathname.replace(/\/$/, "") || location.origin;
+    }
+
+    function checkSecureContext() {
+      const micAlert = document.getElementById("micAlert");
+      const httpsLink = document.getElementById("httpsLink");
+      if (!window.isSecureContext && !["localhost", "127.0.0.1"].includes(location.hostname)) {
+        micAlert.hidden = false;
+        const httpsUrl = location.href.replace(/^http:/, "https:").replace(":8000", ":8443");
+        httpsLink.href = httpsUrl;
+        httpsLink.textContent = httpsUrl;
+        return false;
+      }
+      micAlert.hidden = true;
+      return true;
+    }
+
+    function initNetworkAccess() {
+      const pageUrl = getPageUrl();
+      const pageUrlEl = document.getElementById("pageUrl");
+      const hint = document.getElementById("networkHint");
+
+      checkSecureContext();
+      pageUrlEl.textContent = pageUrl;
+
+      if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+        hint.innerHTML =
+          "Vous êtes en <strong>localhost</strong>. Pour le téléphone, remplacez par l’IP LAN de ce PC " +
+          "(ex. <code>http://192.168.1.10:8000</code>). Lancez : <code>bash scripts/show_lan_url.sh</code>";
+        fetch(location.origin + "/api/v1/network-info")
+          .then((r) => r.json())
+          .then((data) => {
+            const urls = data.suggested_urls || [];
+            if (urls.length && !urls[0].includes("172.")) {
+              pageUrlEl.innerHTML = urls
+                .map((u) => `<div><a href="${u}" style="color:#93c5fd">${u}</a></div>`)
+                .join("");
+            } else {
+              hint.innerHTML +=
+                " Ajoutez dans <code>.env</code> : <code>LAN_PUBLIC_URL=http://VOTRE_IP:8000</code> puis <code>docker compose up -d</code>.";
+            }
+          })
+          .catch(() => {});
+      } else {
+        hint.textContent =
+          "Téléphone sur le même Wi‑Fi : copiez le lien ci-dessus (HTTPS port 8443).";
+      }
+
+      document.getElementById("btnCopyUrl").onclick = () => {
+        const text = pageUrlEl.textContent.trim().split("\n")[0] || pageUrl;
+        navigator.clipboard.writeText(text).then(() => {
+          setStatus("", "Lien copié");
+          setTimeout(() => setStatus("", "Prêt"), 2000);
+        });
+      };
+      document.getElementById("btnOpenUrl").onclick = () => {
+        window.open(pageUrl, "_blank");
+      };
+    }
+
+    const defaultWs = getWsUrl();
+
+    const els = {
+      btnCall: document.getElementById("btnCall"),
+      callHint: document.getElementById("callHint"),
+      timer: document.getElementById("timer"),
+      globalStatus: document.getElementById("globalStatus"),
+      statusText: document.getElementById("statusText"),
+      transcript: document.getElementById("transcript"),
+      langBadge: document.getElementById("langBadge"),
+      chunkInfo: document.getElementById("chunkInfo"),
+      classEmpty: document.getElementById("classEmpty"),
+      classResults: document.getElementById("classResults"),
+      priorityEmpty: document.getElementById("priorityEmpty"),
+      priorityResults: document.getElementById("priorityResults"),
+      priorityBadge: document.getElementById("priorityBadge"),
+      urgencyLine: document.getElementById("urgencyLine"),
+      sentimentEmpty: document.getElementById("sentimentEmpty"),
+      sentimentResults: document.getElementById("sentimentResults"),
+      sentimentFill: document.getElementById("sentimentFill"),
+      wsUrl: document.getElementById("wsUrl"),
+      apiKey: document.getElementById("apiKey"),
+    };
+
+    const fieldIds = [
+      "rIntent", "rRequestType", "rCategory", "rService", "rHandlingSla",
+      "rLevel1", "rLevel2", "rTheme", "rWaiting",
+      "rConfIntent", "rSentiment", "rEmotion", "rScore",
+    ];
+    fieldIds.forEach((id) => { els[id] = document.getElementById(id); });
+
+    const savedWs = localStorage.getItem("wsUrl");
+    const onLan = !["localhost", "127.0.0.1"].includes(location.hostname);
+    if (savedWs && onLan && /localhost|127\.0\.0\.1/.test(savedWs)) {
+      localStorage.removeItem("wsUrl");
+    }
+    els.wsUrl.value = localStorage.getItem("wsUrl") || defaultWs;
+    els.apiKey.value = localStorage.getItem("apiKey") || "dev-key";
+    initNetworkAccess();
+
+    let ws, audioCtx, processor, stream, inCall = false;
+    let callStart = null, timerInterval = null, chunkCount = 0;
+    let liveTranscript = "";
+
+    const transcriptStatusEl = document.getElementById("transcriptStatus");
+
+    function setStatus(mode, text) {
+      els.globalStatus.className = "status-pill " + (mode || "");
+      els.statusText.textContent = text;
+    }
+
+    function formatLabel(map, key) {
+      if (!key) return "—";
+      return map[key] || key.replace(/_/g, " ");
+    }
+
+    function updatePriority(priority, urgency) {
+      els.priorityEmpty.hidden = true;
+      els.priorityResults.hidden = false;
+      const p = (priority || "medium").toLowerCase();
+      els.priorityBadge.textContent = (LABELS.priority[p] || p).toUpperCase();
+      els.priorityBadge.className = "priority-badge priority-" + p;
+      els.urgencyLine.hidden = !urgency;
+    }
+
+    function updateClassification(c) {
+      if (!c) return;
+      els.classEmpty.hidden = true;
+      els.classResults.hidden = false;
+      els.rIntent.textContent = formatLabel(LABELS.intent, c.intent);
+      els.rRequestType.textContent = c.request_type || "—";
+      els.rCategory.textContent = c.category || c.level2_label || "—";
+      const serviceLabels = {
+        internet: "Internet & connectivité",
+        fibre: "Déploiement fibre",
+        installation: "Installation / mise en service",
+        service_client: "Service client & réclamations",
+        digital: "Espace client & My Idoom",
+      };
+      els.rService.textContent =
+        c.service_label || serviceLabels[c.service] || c.service || "—";
+      if (c.handling_sla_days != null) {
+        els.rHandlingSla.textContent = `≤ ${c.handling_sla_days} jour(s) ouvré(s)`;
+      } else {
+        const sla = { critical: 1, high: 2, medium: 5, low: 10 };
+        const d = sla[(c.priority || "medium").toLowerCase()];
+        els.rHandlingSla.textContent = d ? `≤ ${d} jour(s) ouvré(s)` : "—";
+      }
+      els.rLevel1.textContent = c.level1_label || "—";
+      els.rLevel2.textContent = c.level2_label || "—";
+      els.rTheme.textContent = c.theme || "—";
+      if (c.waiting_days != null) {
+        els.rWaiting.textContent = `${c.waiting_days} j (${c.waiting_unit || "?"})`;
+      } else {
+        els.rWaiting.textContent = "—";
+      }
+      if (c.confidence?.intent != null) {
+        els.rConfIntent.textContent = (c.confidence.intent * 100).toFixed(1) + " %";
+      }
+      updatePriority(c.priority, c.urgency);
+    }
+
+    function updateAdvisor(advisor) {
+      const empty = document.getElementById("advisorEmpty");
+      const loading = document.getElementById("advisorLoading");
+      const content = document.getElementById("advisorContent");
+      const errEl = document.getElementById("advisorError");
+      if (loading) loading.hidden = true;
+      if (!advisor || !advisor.enabled) {
+        if (empty) {
+          empty.hidden = false;
+          empty.textContent =
+            advisor?.message || "Conseiller IA désactivé — ajoutez DEEPSEEK_API_KEY dans .env";
+        }
+        if (content) content.hidden = true;
+        if (errEl) errEl.hidden = true;
+        return;
+      }
+      if (empty) empty.hidden = true;
+      if (advisor.solution) {
+        if (content) {
+          content.hidden = false;
+          content.textContent = advisor.solution;
+        }
+        if (errEl) errEl.hidden = true;
+      } else {
+        if (content) content.hidden = true;
+        if (errEl) {
+          errEl.hidden = false;
+          errEl.textContent = advisor.error || "Réponse IA vide";
+        }
+      }
+    }
+
+    function showAdvisorLoading() {
+      const empty = document.getElementById("advisorEmpty");
+      const loading = document.getElementById("advisorLoading");
+      const content = document.getElementById("advisorContent");
+      const errEl = document.getElementById("advisorError");
+      if (empty) empty.hidden = true;
+      if (loading) {
+        loading.hidden = false;
+        loading.textContent = "Conseiller Algérie Télécom en cours (DeepSeek)…";
+      }
+      if (content) content.hidden = true;
+      if (errEl) errEl.hidden = true;
+    }
+
+    function updateSentiment(s) {
+      if (!s) return;
+      els.sentimentEmpty.hidden = true;
+      els.sentimentResults.hidden = false;
+      els.rSentiment.textContent = formatLabel(LABELS.sentiment, s.sentiment);
+      els.rEmotion.textContent = formatLabel(LABELS.emotion, s.emotion) || s.emotion;
+      const score = typeof s.score === "number" ? s.score : parseFloat(s.score);
+      const safe = Number.isFinite(score) ? Math.min(1, Math.max(0, score)) : 0;
+      const pct = Math.round(safe * 100);
+      if (els.sentimentFill) {
+        els.sentimentFill.style.width = Math.max(pct, safe > 0 ? 3 : 0) + "%";
+      }
+      if (els.rScore) {
+        els.rScore.textContent = (safe * 100).toFixed(1) + " %";
+      }
+    }
+
+    function setTranscriptStatus(msg) {
+      if (transcriptStatusEl) transcriptStatusEl.textContent = msg || "";
+    }
+
+    function appendTranscript(text, isPartial) {
+      if (!text || !text.trim()) return;
+      liveTranscript = text.trim();
+      els.transcript.classList.remove("empty");
+      if (isPartial) {
+        els.transcript.innerHTML =
+          escapeHtml(liveTranscript) + '<span class="transcript-partial"> …</span>';
+      } else {
+        els.transcript.textContent = liveTranscript;
+      }
+      els.transcript.scrollTop = els.transcript.scrollHeight;
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function handleMessage(msg) {
+      const t = msg.type;
+      const p = msg.payload || {};
+
+      if (t === "session_started") {
+        setStatus("live", "Appel en cours — écoute");
+        return;
+      }
+      if (t === "status") {
+        const labels = {
+          processing_stt: p.message || "Transcription en cours…",
+          processing_nlp: "Analyse classification & sentiment…",
+          processing_advisor: p.message || "Conseiller IA Algérie Télécom…",
+        };
+        const label = labels[p.phase] || "Traitement…";
+        setStatus("processing", label);
+        setTranscriptStatus(label);
+        return;
+      }
+      if (t === "partial_transcript") {
+        chunkCount++;
+        els.chunkInfo.hidden = false;
+        els.chunkInfo.textContent = `Segment ${chunkCount}`;
+        if (p.language) {
+          els.langBadge.hidden = false;
+          els.langBadge.textContent = "Langue: " + p.language.toUpperCase();
+        }
+        const full = p.full_transcript || p.text || "";
+        appendTranscript(full, false);
+        setTranscriptStatus("Segment transcrit. Analyse NLP en cours…");
+        setStatus("live", "Appel en cours — texte mis à jour");
+        return;
+      }
+      if (t === "stt_empty" || t === "stt_skip") {
+        setTranscriptStatus(p.message || "Segment ignoré");
+        return;
+      }
+      if (t === "transcript_rejected") {
+        setTranscriptStatus(p.message || "Segment non validé — pas envoyé à la classification");
+        return;
+      }
+      if (t === "nlp_result") {
+        const full = p.transcript || liveTranscript || "";
+        appendTranscript(full, false);
+        setTranscriptStatus("Analyse OK — solution IA en cours…");
+        if (p.classification) updateClassification(p.classification);
+        if (p.sentiment) updateSentiment(p.sentiment);
+        showAdvisorLoading();
+        setStatus("processing", "Génération solution Algérie Télécom…");
+        return;
+      }
+      if (t === "advisor_result") {
+        updateAdvisor(p);
+        setTranscriptStatus("");
+        setStatus("live", "Solution conseiller disponible");
+        return;
+      }
+      if (t === "final_transcript") {
+        appendTranscript(p.transcript || liveTranscript || "", false);
+        setTranscriptStatus("");
+        setStatus("", "Appel terminé");
+        return;
+      }
+      if (t === "error") {
+        setTranscriptStatus("");
+        setStatus("error", "Erreur: " + (p.message || "inconnue"));
+      }
+    }
+
+    function resetResults() {
+      chunkCount = 0;
+      liveTranscript = "";
+      els.transcript.classList.add("empty");
+      els.transcript.textContent = "Parlez après avoir appuyé sur 📞 — le texte s’affiche par segments (~3 s).";
+      setTranscriptStatus("");
+      els.langBadge.hidden = true;
+      els.chunkInfo.hidden = true;
+      els.classEmpty.hidden = false;
+      els.classResults.hidden = true;
+      els.priorityEmpty.hidden = false;
+      els.priorityResults.hidden = true;
+      els.sentimentEmpty.hidden = false;
+      els.sentimentResults.hidden = true;
+      updateAdvisor(null);
+    }
+
+    function micErrorMessage(err) {
+      const n = err && err.name;
+      if (n === "NotAllowedError" || n === "PermissionDeniedError") {
+        return "Micro refusé : Paramètres → Chrome → Microphone → Autoriser ce site. Ou utilisez https://IP:8443/";
+      }
+      if (n === "NotFoundError") return "Aucun micro détecté sur l’appareil.";
+      if (n === "NotSupportedError" || !navigator.mediaDevices) {
+        return "Micro indisponible : ouvrez le site en HTTPS (port 8443), pas en http://";
+      }
+      if (n === "NotReadableError") return "Micro utilisé par une autre application.";
+      return "Micro : " + (err.message || n || "erreur");
+    }
+
+    async function requestMicrophone() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("NOT_SUPPORTED");
+      }
+      return navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+        video: false,
+      });
+    }
+
+    function resampleTo16k(input, sourceRate) {
+      const TARGET = 16000;
+      if (Math.abs(sourceRate - TARGET) < 1) return input;
+      const ratio = sourceRate / TARGET;
+      const outLen = Math.floor(input.length / ratio);
+      const out = new Float32Array(outLen);
+      for (let i = 0; i < outLen; i++) {
+        const src = i * ratio;
+        const idx = Math.floor(src);
+        const frac = src - idx;
+        const a = input[idx] ?? 0;
+        const b = input[idx + 1] ?? a;
+        out[i] = a + frac * (b - a);
+      }
+      return out;
+    }
+
+    function setupAudioPipeline(mediaStream) {
+      const TARGET_RATE = 16000;
+      audioCtx = new AudioContext();
+      const source = audioCtx.createMediaStreamSource(mediaStream);
+      processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      processor.onaudioprocess = (e) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN || !inCall) return;
+        let input = e.inputBuffer.getChannelData(0);
+        input = resampleTo16k(input, audioCtx.sampleRate);
+        const pcm = new Int16Array(input.length);
+        for (let i = 0; i < input.length; i++) {
+          const s = Math.max(-1, Math.min(1, input[i]));
+          pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+        }
+        ws.send(pcm.buffer);
+      };
+      const silentGain = audioCtx.createGain();
+      silentGain.gain.value = 0;
+      source.connect(processor);
+      processor.connect(silentGain);
+      silentGain.connect(audioCtx.destination);
+      if (audioCtx.state === "suspended") audioCtx.resume();
+    }
+
+    async function uploadAudioBlob(blob, filename) {
+      setStatus("processing", "Analyse audio…");
+      const fd = new FormData();
+      fd.append("file", blob, filename || "recording.webm");
+      const headers = {};
+      const key = els.apiKey.value.trim();
+      if (key) headers["X-API-Key"] = key;
+      const resp = await fetch(location.origin + "/api/v1/pipeline", {
+        method: "POST",
+        headers,
+        body: fd,
+      });
+      if (!resp.ok) {
+        let msg = "Erreur serveur";
+        try {
+          const err = await resp.json();
+          msg = err.detail || err.message || JSON.stringify(err);
+        } catch (_) {
+          msg = await resp.text();
+        }
+        throw new Error(msg);
+      }
+      const data = await resp.json();
+      if (data.message && !data.transcript) {
+        setTranscriptStatus(data.message);
+        setStatus("", data.message);
+        return;
+      }
+      appendTranscript(data.transcript || "", false);
+      if (data.language) {
+        els.langBadge.hidden = false;
+        els.langBadge.textContent = "Langue: " + data.language.toUpperCase();
+      }
+      if (data.classification) updateClassification(data.classification);
+      else if (data.transcript) await analyzeDisplayedText();
+      if (data.sentiment) updateSentiment(data.sentiment);
+      if (data.advisor) {
+        updateAdvisor(data.advisor);
+        setStatus("", data.advisor.solution ? "Analyse + solution terminées" : "Analyse terminée");
+      } else {
+        setStatus("", "Analyse terminée");
+      }
+    }
+
+    async function analyzeDisplayedText() {
+      const text = liveTranscript || els.transcript.textContent.trim();
+      if (!text || els.transcript.classList.contains("empty")) {
+        setStatus("error", "Aucun texte à analyser");
+        return;
+      }
+      setStatus("processing", "Classification & sentiment…");
+      const headers = { "Content-Type": "application/json" };
+      const key = els.apiKey.value.trim();
+      if (key) headers["X-API-Key"] = key;
+      const resp = await fetch(location.origin + "/api/v1/analyze", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ text }),
+      });
+      if (!resp.ok) {
+        let msg = "Erreur analyse";
+        try {
+          const err = await resp.json();
+          msg = err.detail || msg;
+        } catch (_) {}
+        throw new Error(msg);
+      }
+      const data = await resp.json();
+      if (data.classification) updateClassification(data.classification);
+      if (data.sentiment) updateSentiment(data.sentiment);
+      if (data.advisor) updateAdvisor(data.advisor);
+      setTranscriptStatus("Analyse basée sur le texte affiché");
+      setStatus("", data.advisor?.solution ? "Classification + solution IA" : "Classification à jour");
+    }
+
+    let mediaRecorder = null;
+    let recordChunks = [];
+
+    async function toggleRecord() {
+      const btn = document.getElementById("btnRecord");
+      const recStatus = document.getElementById("recStatus");
+      if (mediaRecorder && mediaRecorder.state === "recording") {
+        mediaRecorder.stop();
+        return;
+      }
+      try {
+        stream = await requestMicrophone();
+      } catch (e) {
+        setStatus("error", micErrorMessage(e));
+        return;
+      }
+      recordChunks = [];
+      const mime = MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/mp4";
+      mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
+      mediaRecorder.ondataavailable = (ev) => {
+        if (ev.data.size > 0) recordChunks.push(ev.data);
+      };
+      mediaRecorder.onstop = async () => {
+        recStatus.hidden = true;
+        btn.textContent = "🎙 Enregistrer (10–30 s)";
+        stream.getTracks().forEach((t) => t.stop());
+        stream = null;
+        const blob = new Blob(recordChunks, { type: mime });
+        resetResults();
+        try {
+          await uploadAudioBlob(blob, "mobile.webm");
+        } catch (err) {
+          setStatus("error", "Envoi échoué : " + err.message);
+        }
+      };
+      mediaRecorder.start();
+      recStatus.hidden = false;
+      btn.textContent = "⏹ Arrêter et analyser";
+      setStatus("live", "Enregistrement… parlez puis arrêtez");
+      setTimeout(() => {
+        if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+      }, 30000);
+    }
+
+    async function startCall() {
+      if (!checkSecureContext()) {
+        setStatus("error", "Passez en HTTPS (port 8443) pour le micro live");
+        return;
+      }
+
+      localStorage.setItem("wsUrl", els.wsUrl.value);
+      localStorage.setItem("apiKey", els.apiKey.value);
+      resetResults();
+
+      setStatus("processing", "Autorisation micro…");
+      try {
+        stream = await requestMicrophone();
+      } catch (e) {
+        setStatus("error", micErrorMessage(e));
+        return;
+      }
+
+      els.btnCall.classList.remove("start");
+      els.btnCall.classList.add("stop");
+      els.btnCall.textContent = "⏹";
+      els.btnCall.title = "Terminer l'appel";
+      els.callHint.textContent = "Parlez 2–4 s en darija — transcription ~20–40 s, puis classification si validée";
+      setTranscriptStatus("Écoute… parlez maintenant");
+      inCall = true;
+
+      let url = els.wsUrl.value.trim() || getWsUrl();
+      ws = new WebSocket(url);
+      ws.binaryType = "arraybuffer";
+
+      ws.onopen = () => {
+        setStatus("live", "Micro actif — en écoute");
+        setupAudioPipeline(stream);
+        callStart = Date.now();
+        timerInterval = setInterval(() => {
+          const s = Math.floor((Date.now() - callStart) / 1000);
+          els.timer.textContent =
+            String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+        }, 500);
+      };
+
+      ws.onmessage = (ev) => {
+        if (typeof ev.data !== "string") return;
+        try { handleMessage(JSON.parse(ev.data)); } catch (_) {}
+      };
+
+      ws.onerror = () => {
+        setStatus("error", "WebSocket impossible — vérifiez https:// et Docker");
+        stopCall(false);
+      };
+      ws.onclose = () => {
+        if (inCall) stopCall(false);
+      };
+    }
+
+    function stopCall(sendEnd = true) {
+      inCall = false;
+      if (sendEnd && ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "end_call" }));
+        ws.close();
+      }
+      if (processor) { processor.disconnect(); processor = null; }
+      if (audioCtx) { audioCtx.close(); audioCtx = null; }
+      if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+      clearInterval(timerInterval);
+      els.timer.textContent = "";
+      els.btnCall.classList.remove("stop");
+      els.btnCall.classList.add("start");
+      els.btnCall.textContent = "📞";
+      els.btnCall.title = "Démarrer l'appel";
+      els.callHint.textContent = "Cliquez pour lancer un appel et parler au micro";
+      if (!sendEnd) setStatus("", "Prêt");
+    }
+
+    els.btnCall.onclick = () => {
+      if (inCall) stopCall(true);
+      else startCall();
+    };
+
+    document.getElementById("btnAnalyzeText").onclick = () =>
+      analyzeDisplayedText().catch((e) => setStatus("error", e.message));
+
+    document.getElementById("btnRecord").onclick = () => toggleRecord();
+    document.getElementById("audioFile").onchange = async (ev) => {
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      resetResults();
+      try {
+        await uploadAudioBlob(file, file.name);
+      } catch (err) {
+        setStatus("error", "Fichier : " + err.message);
+      }
+      ev.target.value = "";
+    };
+
+    function renderBars(containerId, data, labelMap) {
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      const entries = Object.entries(data || {}).sort((a, b) => b[1] - a[1]);
+      const max = entries.length ? Math.max(...entries.map((e) => e[1])) : 1;
+      el.innerHTML = entries.length
+        ? entries
+            .map(([k, v]) => {
+              const label = (labelMap && labelMap[k]) || k.replace(/_/g, " ");
+              const pct = Math.round((v / max) * 100);
+              return `<div class="bar-row"><span>${label}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><span>${v}</span></div>`;
+            })
+            .join("")
+        : '<p style="color:var(--muted);font-size:0.85rem;">Aucune donnée</p>';
+    }
+
+    async function loadDashboard() {
+      const headers = {};
+      const key = els.apiKey.value.trim();
+      if (key) headers["X-API-Key"] = key;
+      const resp = await fetch(location.origin + "/api/v1/stats/dashboard", { headers });
+      if (!resp.ok) throw new Error("Stats indisponibles");
+      const d = await resp.json();
+      document.getElementById("statTotal").textContent = d.total || 0;
+      const bp = d.by_priority || {};
+      document.getElementById("statHigh").textContent =
+        (bp.high || 0) + (bp.critical || 0);
+      document.getElementById("statReclamation").textContent =
+        (d.by_intent || {}).reclamation || 0;
+      document.getElementById("statNegative").textContent =
+        (d.by_sentiment || {}).negative || 0;
+      renderBars("barsPriority", d.by_priority, LABELS.priority);
+      renderBars("barsCategory", d.by_category, null);
+      renderBars("barsSentiment", d.by_sentiment, LABELS.sentiment);
+      const tbody = document.getElementById("recentTableBody");
+      const rows = (d.recent || []).map((r) => {
+        const dt = r.at ? new Date(r.at).toLocaleString("fr-FR") : "—";
+        return `<tr>
+          <td>${dt}</td>
+          <td>${(LABELS.priority[r.priority] || r.priority || "—")}</td>
+          <td>${(r.level2_label || r.category || "—").replace(/_/g, " ")}</td>
+          <td>${(LABELS.sentiment[r.sentiment] || r.sentiment || "—")}</td>
+          <td dir="auto">${escapeHtml(r.transcript_preview || "")}</td>
+        </tr>`;
+      });
+      tbody.innerHTML = rows.length
+        ? rows.join("")
+        : '<tr><td colspan="5" style="color:var(--muted)">Aucune réclamation enregistrée</td></tr>';
+    }
+
+    function switchView(view) {
+      document.getElementById("viewCall").hidden = view !== "call";
+      document.getElementById("viewDashboard").hidden = view !== "dashboard";
+      document.querySelectorAll(".nav-tab").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.view === view);
+      });
+      if (view === "dashboard") {
+        loadDashboard().catch((e) => setStatus("error", e.message));
+      }
+    }
+
+    document.querySelectorAll(".nav-tab[data-view]").forEach((btn) => {
+      btn.onclick = () => switchView(btn.dataset.view);
+    });
+    document.getElementById("btnRefreshStats").onclick = () =>
+      loadDashboard().catch((e) => setStatus("error", e.message));
+
+    function updateServicesBanner(h) {
+      const banner = document.getElementById("servicesBanner");
+      if (!banner) return;
+      const labels = { gateway: "Gateway", vad: "VAD", stt: "STT", nlp: "NLP" };
+      banner.innerHTML = Object.entries(labels)
+        .map(([k, label]) => {
+          const s = h[k] || "unknown";
+          const cls = s === "ok" ? "ok" : s === "loading" ? "loading" : "down";
+          const txt =
+            s === "ok" ? "OK" : s === "loading" ? "Chargement…" : "Hors ligne";
+          return `<span class="svc-chip ${cls}">${label}: ${txt}</span>`;
+        })
+        .join("");
+    }
+
+    function refreshHealth() {
+      fetch(location.origin + "/health")
+        .then((r) => r.json())
+        .then((h) => {
+          updateServicesBanner(h);
+          const sttOk = h.stt === "ok";
+          const ok = ["vad", "nlp"].every((k) => h[k] === "ok") && sttOk;
+          if (h.stt === "loading") {
+            setStatus("processing", "STT : chargement modèle Whisper (~1 min)…");
+          } else if (!ok) {
+            setStatus("error", "Services partiels — attendez STT ou docker compose up -d stt");
+          } else if (!inCall) {
+            setStatus("", "Prêt");
+          }
+        })
+        .catch(() => setStatus("error", "Gateway inaccessible"));
+    }
+    refreshHealth();
+    setInterval(refreshHealth, 15000);
+  </script>
+</body>
+</html>

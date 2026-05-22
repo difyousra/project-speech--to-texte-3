@@ -1,0 +1,107 @@
+services:
+  redis:
+    image: redis:7-alpine
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  vad:
+    build:
+      context: .
+      dockerfile: services/vad/Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - VAD_ENGINE=rms
+      - DEVICE=cpu
+      - CUDA_VISIBLE_DEVICES=
+      - API_KEY=${API_KEY:-dev-key}
+    volumes:
+      - ./libs:/app/libs:ro
+
+  stt:
+    build:
+      context: .
+      dockerfile: services/stt/Dockerfile
+    ports:
+      - "8002:8002"
+    mem_limit: 6g
+    shm_size: "512mb"
+    restart: unless-stopped
+    environment:
+      - DEVICE=cpu
+      - CUDA_VISIBLE_DEVICES=
+      - STT_USE_FASTER_WHISPER=${STT_USE_FASTER_WHISPER:-false}
+      - STT_DEFAULT_LANGUAGE=darija
+      - STT_MAX_AUDIO_SEC=12
+      - STT_MAX_NEW_TOKENS_PARTIAL=48
+      - STT_TORCH_THREADS=4
+      - STT_QUANTIZE_DYNAMIC=false
+      - STT_MAX_LOADED_MODELS=1
+      - API_KEY=${API_KEY:-dev-key}
+      - PROJECT_ROOT=/app
+    volumes:
+      - ./whisper-finetuned:/app/whisper-finetuned:ro
+      - ./libs:/app/libs:ro
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/ready')"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 120s
+
+  nlp:
+    build:
+      context: .
+      dockerfile: services/nlp/Dockerfile
+    ports:
+      - "8003:8003"
+    mem_limit: 8g
+    shm_size: "1gb"
+    restart: unless-stopped
+    environment:
+      - DEVICE=cpu
+      - CUDA_VISIBLE_DEVICES=
+      - LOW_MEMORY=true
+      - TORCH_NUM_THREADS=4
+      - API_KEY=${API_KEY:-dev-key}
+      - PROJECT_ROOT=/app
+    volumes:
+      - ./NLP:/app/NLP:ro
+      - ./libs:/app/libs:ro
+
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    ports:
+      - "0.0.0.0:8000:8000"
+      - "0.0.0.0:8443:8443"
+    volumes:
+      - ./certs:/app/certs:ro
+    environment:
+      - API_KEY=${API_KEY:-dev-key}
+      - VAD_SERVICE_URL=http://vad:8001
+      - STT_SERVICE_URL=http://stt:8002
+      - NLP_SERVICE_URL=http://nlp:8003
+      - REDIS_URL=redis://redis:6379/0
+      - WS_BUFFER_SECONDS=2.0
+      - STT_DEFAULT_LANGUAGE=darija
+      - WS_MIN_AUDIO_SEC=1.0
+      - LAN_PUBLIC_URL=${LAN_PUBLIC_URL:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_ENABLED=${DEEPSEEK_ENABLED:-true}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
+    depends_on:
+      redis:
+        condition: service_healthy
+      vad:
+        condition: service_started
+      stt:
+        condition: service_healthy
+      nlp:
+        condition: service_started
